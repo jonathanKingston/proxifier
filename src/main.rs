@@ -18,7 +18,7 @@ fn main() {
     fn proxy(req: Request<Body>) -> BoxFut {
         println!("a {:?}", req.uri().host());
         let mut uri = Uri::builder();
-        uri.scheme("https");
+        uri.scheme("http");
         match req.uri().host() {
             Some(hostname) => {
                 uri.authority(hostname);
@@ -34,23 +34,16 @@ fn main() {
         uri.path_and_query(req.uri().path_and_query().expect("need a pathy").to_owned());
         let request_uri = uri.build().expect("doesn't look like a uri");
         println!("b {:?}", request_uri.to_string());
-        //rt::run(rt::lazy(|| {
         let client = Client::new();
 
-        Box::new(client.get(request_uri).and_then(|res| {
+        Box::new(client.get(request_uri).map_err(|err| {
+            println!("Error: {}", err);
+            err
+        }).and_then(|res| {
             println!("Response: {}", res.status());
             println!("Headers: {:#?}", res.headers());
             future::ok(res)
         }))
-        /*
-        .map(|res| {
-            println!("Response: {}", res.status());
-        })
-        .map_err(|err| {
-            println!("Error: {}", err);
-        })*/
-        //}));
-        //Box::new(future::ok(Response::new(Body::from(request_uri.to_string()))))
     };
     let server = Server::bind(&addr)
         .serve(|| service_fn(proxy))
