@@ -37,7 +37,11 @@ fn main() {
         //rt::run(rt::lazy(|| {
         let client = Client::new();
 
-        Box::new(client.get(request_uri))
+        Box::new(client.get(request_uri).and_then(|res| {
+            println!("Response: {}", res.status());
+            println!("Headers: {:#?}", res.headers());
+            future::ok(res)
+        }))
         /*
         .map(|res| {
             println!("Response: {}", res.status());
