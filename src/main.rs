@@ -11,39 +11,54 @@ use std::io::{self, Write};
 
 static TEXT: &str = "Hello, World!";
 
+fn build_target_uri(req: Request<hyper::Body>) -> Uri {
+    let request_uri = req.uri();
+    let mut uri = Uri::builder();
+    uri.scheme("http");
+    match request_uri.host() {
+        Some(hostname) => {
+            uri.authority(hostname);
+        }
+        None => {
+            let host = req
+                .headers()
+                .get("Host")
+                .expect("Sorry no host provided pal!");
+            uri.authority(host.to_str().expect("header isn't a string"));
+        }
+    }
+    uri.path_and_query(
+        request_uri
+            .path_and_query()
+            .expect("need a pathy")
+            .to_owned(),
+    );
+    uri.build().expect("doesn't look like a uri")
+}
+
 fn main() {
     type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
     let addr = ([0, 0, 0, 0], 3000).into();
 
     fn proxy(req: Request<Body>) -> BoxFut {
-        println!("a {:?}", req.uri().host());
-        let mut uri = Uri::builder();
-        uri.scheme("http");
-        match req.uri().host() {
-            Some(hostname) => {
-                uri.authority(hostname);
-            }
-            None => {
-                let host = req
-                    .headers()
-                    .get("Host")
-                    .expect("Sorry no host provided pal!");
-                uri.authority(host.to_str().expect("header isn't a string"));
-            }
-        }
-        uri.path_and_query(req.uri().path_and_query().expect("need a pathy").to_owned());
-        let request_uri = uri.build().expect("doesn't look like a uri");
-        println!("b {:?}", request_uri.to_string());
-        let client = Client::new();
+        let request_uri = req.uri();
+        let target_uri = build_target_uri(req);
+        println!("Target URI: {}", target_uri);
 
-        Box::new(client.get(request_uri).map_err(|err| {
-            println!("Error: {}", err);
-            err
-        }).and_then(|res| {
-            println!("Response: {}", res.status());
-            println!("Headers: {:#?}", res.headers());
-            future::ok(res)
-        }))
+        let client = Client::new();
+        Box::new(
+            client
+                .get(target_uri)
+                .map_err(|err| {
+                    println!("Error: {}", err);
+                    err
+                })
+                .and_then(|res| {
+                    println!("Response: {}", res.status());
+                    println!("Headers: {:#?}", res.headers());
+                    future::ok(res)
+                }),
+        )
     };
     let server = Server::bind(&addr)
         .serve(|| service_fn(proxy))
