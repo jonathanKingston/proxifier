@@ -9,8 +9,6 @@ use hyper::rt::{self, Future, Stream};
 use hyper::Client;
 use std::io::{self, Write};
 
-static TEXT: &str = "Hello, World!";
-
 fn build_target_uri(req: Request<hyper::Body>) -> Uri {
     let request_uri = req.uri();
     let mut uri = Uri::builder();
