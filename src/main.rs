@@ -1,9 +1,9 @@
 extern crate futures;
 extern crate hyper;
 
-use futures::future;
+use futures::{future, Stream};
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response, Server, Uri};
+use hyper::{Body, Request, Response, Server, Uri, Chunk};
 
 use hyper::rt::Future;
 use hyper::Client;
@@ -36,19 +36,33 @@ fn build_target_uri(req: Request<hyper::Body>) -> Uri {
 
 /// Rewrites all case-sensitive occurences of the string
 /// 'https' to 'http'.
+/*
 fn https_to_http(body: Body) -> Body {
     // TODO: actually modify it :)
-    body
-}
-
+    body.then(|result| {
+        match result {
+            Ok(e) => Ok(e),
+            Err(b) => Err(b),
+        }
+    }).into()
+}*/
+/*
 /// Takes a response and creates a new, modified response
 fn modify_response(response: Response<Body>) -> Response<Body> {
-    let (parts, body) = response.into_parts();
+    //let (parts, body) = response.into_parts();
 
-    let new_body = https_to_http(body);
+    //let new_body = https_to_http(body);
 
-    Response::from_parts(parts, new_body)
-}
+    response.then(|result| {
+        match result {
+            Ok(e) => Ok(e),
+            Err(b) => Err(b),
+        }
+    }).collect2()
+
+    //Response::from_parts(parts, new_body)
+}*/
+
 fn main() {
     type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
     let addr = ([0, 0, 0, 0], 3000).into();
@@ -68,8 +82,26 @@ fn main() {
                 .and_then(|res| {
                     println!("Response: {}", res.status());
                     println!("Headers: {:#?}", res.headers());
-                    let new_response = modify_response(res);
-                    future::ok(new_response)
+                    let (parts, body) = res.into_parts();
+                    let mut dumb_thing = Vec::new();
+                    let mod_body = body.then(move |result| {
+                        match result {
+                            Ok(e) => {
+                                let bytes = e.into_bytes();
+                                dumb_thing.push(bytes.clone());
+
+                                //println!("{:?}", e);
+                                let mut me = String::from_utf8(bytes.to_vec()).unwrap();
+                                me = me.replace("https", "http");
+                                me = me.replace("Example", "Firefox!");
+                                Ok(Chunk::from(me))
+                            },
+                            Err(b) => Err(b),
+                        }
+                    });
+                    let mut builder = Response::builder();
+                    let res = builder.body(Body::wrap_stream(mod_body)).expect("builder broke");
+                    future::ok(res)
                 }),
         )
     };
