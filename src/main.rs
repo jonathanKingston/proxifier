@@ -5,9 +5,8 @@ use futures::future;
 use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server, Uri};
 
-use hyper::rt::{self, Future, Stream};
+use hyper::rt::Future;
 use hyper::Client;
-use std::io::{self, Write};
 
 /// Looking at a request's URI and gives us a new one
 fn build_target_uri(req: Request<hyper::Body>) -> Uri {
@@ -39,7 +38,7 @@ fn build_target_uri(req: Request<hyper::Body>) -> Uri {
 /// 'https' to 'http'.
 fn https_to_http(body: Body) -> Body {
     // TODO: actually modify it :)
-    return body;
+    body
 }
 
 /// Takes a response and creates a new, modified response
@@ -55,7 +54,6 @@ fn main() {
     let addr = ([0, 0, 0, 0], 3000).into();
 
     fn proxy(req: Request<Body>) -> BoxFut {
-        let request_uri = req.uri();
         let target_uri = build_target_uri(req);
         println!("Target URI: {}", target_uri);
 
