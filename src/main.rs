@@ -5,10 +5,10 @@ use futures::future;
 use hyper::service::service_fn;
 use hyper::{Body, Request, Response, Server, Uri};
 
-use hyper::rt::{self, Future, Stream};
+use hyper::rt::Future;
 use hyper::Client;
-use std::io::{self, Write};
 
+/// Looking at a request's URI and gives us a new one
 fn build_target_uri(req: Request<hyper::Body>) -> Uri {
     let request_uri = req.uri();
     let mut uri = Uri::builder();
@@ -34,12 +34,26 @@ fn build_target_uri(req: Request<hyper::Body>) -> Uri {
     uri.build().expect("doesn't look like a uri")
 }
 
+/// Rewrites all case-sensitive occurences of the string
+/// 'https' to 'http'.
+fn https_to_http(body: Body) -> Body {
+    // TODO: actually modify it :)
+    body
+}
+
+/// Takes a response and creates a new, modified response
+fn modify_response(response: Response<Body>) -> Response<Body> {
+    let (parts, body) = response.into_parts();
+
+    let new_body = https_to_http(body);
+
+    Response::from_parts(parts, new_body)
+}
 fn main() {
     type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
     let addr = ([0, 0, 0, 0], 3000).into();
 
     fn proxy(req: Request<Body>) -> BoxFut {
-        let request_uri = req.uri();
         let target_uri = build_target_uri(req);
         println!("Target URI: {}", target_uri);
 
@@ -54,7 +68,8 @@ fn main() {
                 .and_then(|res| {
                     println!("Response: {}", res.status());
                     println!("Headers: {:#?}", res.headers());
-                    future::ok(res)
+                    let new_response = modify_response(res);
+                    future::ok(new_response)
                 }),
         )
     };
